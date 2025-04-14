@@ -28,7 +28,7 @@ logging.basicConfig(
 # /start command handler
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "hello Merchant! I'm your Crypto Scout .\n"
+        "Hello Merchant! I'm your Crypto Scout .\n"
         "Use /lowcap to get coins under $200k market cap.\n"
         "Use /alerts to subscribe to new coin alerts."
     )
