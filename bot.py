@@ -1,11 +1,20 @@
 import logging
 import os
 import requests
-import asyncio
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes, CallbackQueryHandler
+from telegram.ext import (
+    ApplicationBuilder,
+    CommandHandler,
+    MessageHandler,
+    CallbackQueryHandler,
+    ContextTypes,
+    filters,
+)
 
 TOKEN = os.getenv("TOKEN")
+
+# For demo: change this to a list or database to store subscribers
+SUBSCRIBERS = [@Merchantofwallstreet]  # Replace with your Telegram user ID
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -13,10 +22,19 @@ logging.basicConfig(
 )
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Hey! I'm your Crypto Scout bot. Use /lowcap to get under-200k market cap tokens.\nUse /alerts to subscribe to new coin alerts.")
+    await update.message.reply_text(
+        "Hey! I'm your Crypto Scout bot.\n"
+        "Use /lowcap to get under-200k market cap tokens.\n"
+        "Use /alerts to subscribe to new coin alerts."
+    )
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Commands:\n/start - Welcome message\n/lowcap - Crypto under $200k mcap\n/alerts - Subscribe to alerts for new coins")
+    await update.message.reply_text(
+        "Commands:\n"
+        "/start - Welcome message\n"
+        "/lowcap - Crypto under $200k mcap\n"
+        "/alerts - Subscribe to alerts for new coins"
+    )
 
 async def lowcap(update: Update, context: ContextTypes.DEFAULT_TYPE):
     url = "https://api.coingecko.com/api/v3/coins/markets"
@@ -31,13 +49,21 @@ async def lowcap(update: Update, context: ContextTypes.DEFAULT_TYPE):
     response = requests.get(url, params=params)
     data = response.json()
 
-    filtered = [coin for coin in data if coin.get("market_cap", 0) and coin["market_cap"] < 200000]
+    filtered = [
+        coin for coin in data
+        if coin.get("market_cap") and coin["market_cap"] < 200000
+    ]
 
     if not filtered:
         await update.message.reply_text("No coins under $200k mcap found right now.")
         return
 
-    reply = "\n\n".join([f"{coin['name']} ({coin['symbol'].upper()})\nPrice: ${coin['current_price']:,}\nMarket Cap: ${coin['market_cap']:,}" for coin in filtered])
+    reply = "\n\n".join([
+        f"{coin['name']} ({coin['symbol'].upper()})\n"
+        f"Price: ${coin['current_price']:,}\n"
+        f"Market Cap: ${coin['market_cap']:,}"
+        for coin in filtered
+    ])
     await update.message.reply_text(reply)
 
 async def alerts(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -49,7 +75,6 @@ async def alerts(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Choose an option:", reply_markup=reply_markup)
 
 async def new_coin_alerts(context: ContextTypes.DEFAULT_TYPE):
-    # Fetch new coins
     url = "https://api.coingecko.com/api/v3/coins/markets"
     params = {
         "vs_currency": "usd",
@@ -60,25 +85,31 @@ async def new_coin_alerts(context: ContextTypes.DEFAULT_TYPE):
     response = requests.get(url, params=params)
     data = response.json()
 
-    # Alerting new coins
     for coin in data:
-        message = f"New Coin Alert! 🚨\n{coin['name']} ({coin['symbol'].upper()})\nPrice: ${coin['current_price']:,}"
-        # Send alerts to users who subscribed (you can keep a list of subscribers)
-        # For now, we'll just send it to one user (replace with your user ID)
-        await context.bot.send_message(chat_id=123456789, text=message)
+        message = (
+            f"New Coin Alert!\n"
+            f"{coin['name']} ({coin['symbol'].upper()})\n"
+            f"Price: ${coin['current_price']:,}"
+        )
+
+        for chat_id in SUBSCRIBERS:
+            await context.bot.send_message(chat_id=chat_id, text=message)
 
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
 
+    chat_id = query.message.chat_id
+
     if query.data == 'subscribe_alerts':
-        # Here, you’d add the user's chat_id to a list of subscribers
+        if chat_id not in SUBSCRIBERS:
+            SUBSCRIBERS.append(chat_id)
         await query.edit_message_text("You’ve subscribed to new coin alerts!")
-        # Optionally, store the user's ID in a list or database for alerts
 
     elif query.data == 'unsubscribe_alerts':
-        # Here, you’d remove the user's chat_id from the list
-        await query.edit_message_text("You’ve unsubscribed from new coin alerts!")
+        if chat_id in SUBSCRIBERS:
+            SUBSCRIBERS.remove(chat_id)
+        await query.edit_message_text("You’ve unsubscribed from alerts!")
 
 def main():
     app = ApplicationBuilder().token(TOKEN).build()
@@ -89,8 +120,9 @@ def main():
     app.add_handler(CommandHandler("alerts", alerts))
     app.add_handler(CallbackQueryHandler(button))
 
-    # Schedule new coin alerts every 30 minutes (you can adjust)
-    app.job_queue.run_repeating(new_coin_alerts, interval=30*60, first=0)  # 30 minutes
+    # Set up JobQueue for periodic new coin alerts
+    job_queue = app.job_queue
+    job_queue.run_repeating(new_coin_alerts, interval=30 * 60, first=0)
 
     app.run_polling()
 
