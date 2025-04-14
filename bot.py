@@ -14,7 +14,7 @@ from telegram.ext import (
 TOKEN = os.getenv("TOKEN")
 
 # For demo: change this to a list or database to store subscribers
-SUBSCRIBERS = [@Merchantofwallstreet]  # Replace with your Telegram user ID
+SUBSCRIBERS = [@6449591792]  # Replace with your Telegram user ID
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
