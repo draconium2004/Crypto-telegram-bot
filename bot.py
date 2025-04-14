@@ -8,7 +8,7 @@ from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, fil
 TOKEN = os.getenv("TOKEN")
 
 # Replace this with your Telegram user ID
-SUBSCRIBERS = [123456789]  # Example: Replace with your actual Telegram user ID
+SUBSCRIBERS = [6449591792]  # Example: Replace with your actual Telegram user ID
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
