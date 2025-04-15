@@ -42,10 +42,10 @@ def get_lowcap_text():
     filtered = [
         coin
         for coin in data
-        if coin.get("market_cap", 0) and coin["market_cap"] < 200000
+        if coin.get("market_cap", 0) and coin["market_cap"] < 50000
     ]
     if not filtered:
-        return "No coins under $200k mcap found right now."
+        return "No coins under $50k mcap found right now."
 
     reply = "\n\n".join(
         [
