@@ -205,8 +205,8 @@ def main():
     # Register callback query handler for inline buttons
     app.add_handler(CallbackQueryHandler(button))
 
-    # Schedule new coin alerts every 20 minutes
-    app.job_queue.run_repeating(new_coin_alerts, interval=20 * 60, first=0)
+    # Schedule new coin alerts every 1 minute
+    app.job_queue.run_repeating(new_coin_alerts, interval=1 * 60, first=0)
 
     # Start the bot
     app.run_polling()
