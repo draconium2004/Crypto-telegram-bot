@@ -57,19 +57,20 @@ def get_lowcap_text():
     )
     return reply
 
-# /start command handler with inline menu buttons
+# /start command handler with inline menu buttons and dynamic welcome message
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    username = user.username if user.username else user.first_name
     keyboard = [
         [InlineKeyboardButton("Low Cap Coins", callback_data="cmd_lowcap")],
         [InlineKeyboardButton("Coin Alerts", callback_data="cmd_alerts")],
         [InlineKeyboardButton("Help", callback_data="cmd_help")],
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    # Here update.message exists since it comes from a text command
-    await update.message.reply_text(
-        "Hello Merchant! I'm your Crypto Scout.\nChoose an option below:",
-        reply_markup=reply_markup,
+    welcome_message = (
+        f"Hello {username}!\nI'm your Crypto Scout.\nChoose an option below:"
     )
+    await update.message.reply_text(welcome_message, reply_markup=reply_markup)
 
 # /help command handler (also accessible via inline button)
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -79,10 +80,9 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/lowcap - List coins under $200k mcap (from CoinGecko)\n"
         "/alerts - Subscribe/unsubscribe from new coin alerts"
     )
-    if update.message:  # Command context
+    if update.message:
         await update.message.reply_text(help_text)
     else:
-        # For button callbacks, send a new message using chat_id
         chat_id = update.effective_chat.id
         await context.bot.send_message(chat_id=chat_id, text=help_text)
 
@@ -94,7 +94,6 @@ async def lowcap(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message:
         await update.message.reply_text(text)
     else:
-        # Use effective_chat id when update.message is not available
         chat_id = update.effective_chat.id
         await context.bot.send_message(chat_id=chat_id, text=text)
 
