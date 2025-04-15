@@ -6,10 +6,8 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
-    MessageHandler,
     CallbackQueryHandler,
     ContextTypes,
-    filters,
 )
 
 # Your bot token should be set as an environment variable
@@ -25,22 +23,30 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
 
-# /start command handler
+# /start command handler with inline menu buttons
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    keyboard = [
+        [InlineKeyboardButton("Low Cap Coins", callback_data="cmd_lowcap")],
+        [InlineKeyboardButton("Coin Alerts", callback_data="cmd_alerts")],
+        [InlineKeyboardButton("Help", callback_data="cmd_help")],
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text(
-        "Hello Merchant! I'm your Crypto Scout .\n"
-        "Use /lowcap to get coins under $200k market cap.\n"
-        "Use /alerts to subscribe to new coin alerts."
+        "Hello Merchant! I'm your Crypto Scout.\n"
+        "Choose an option below to get started:",
+        reply_markup=reply_markup,
     )
 
-# /help command handler
+# /help command handler (also accessible via inline buttons)
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
+    help_text = (
         "Commands:\n"
-        "/start - Welcome message\n"
+        "/start - Main menu\n"
         "/lowcap - List coins under $200k mcap (from CoinGecko)\n"
         "/alerts - Subscribe/unsubscribe from new coin alerts"
     )
+    # For direct commands you reply as text
+    await update.message.reply_text(help_text)
 
 # /lowcap command handler (using CoinGecko for demo purposes)
 async def lowcap(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -52,8 +58,13 @@ async def lowcap(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "page": 1,
         "price_change_percentage": "24h",
     }
-    response = requests.get(url, params=params)
-    data = response.json()
+    try:
+        response = requests.get(url, params=params)
+        data = response.json()
+    except Exception as e:
+        logging.error(f"Error fetching CoinGecko data: {e}")
+        await update.message.reply_text("Error fetching low cap coins.")
+        return
 
     filtered = [
         coin
@@ -67,13 +78,15 @@ async def lowcap(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     reply = "\n\n".join(
         [
-            f"{coin['name']} ({coin['symbol'].upper()})\nPrice: ${coin['current_price']:,}\nMarket Cap: ${coin['market_cap']:,}"
+            f"{coin['name']} ({coin['symbol'].upper()})\n"
+            f"Price: ${coin['current_price']:,}\n"
+            f"Market Cap: ${coin['market_cap']:,}"
             for coin in filtered
         ]
     )
     await update.message.reply_text(reply)
 
-# /alerts command handler to show inline keyboard for subscribing
+# /alerts command handler to show inline keyboard for subscribing/unsubscribing
 async def alerts(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [
@@ -86,7 +99,7 @@ async def alerts(update: Update, context: ContextTypes.DEFAULT_TYPE):
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text("Choose an option:", reply_markup=reply_markup)
 
-# Function to fetch and send new coin alerts from Dex Screener for Solana, under $200K mcap
+# Function to fetch and send new coin alerts
 async def new_coin_alerts(context: ContextTypes.DEFAULT_TYPE):
     url = "https://api.dexscreener.com/latest/dex/pairs"
     params = {
@@ -94,50 +107,88 @@ async def new_coin_alerts(context: ContextTypes.DEFAULT_TYPE):
         "page": 1,
         "limit": 10,
     }
-    response = requests.get(url, params=params)
-    data = response.json()
+    try:
+        response = requests.get(url, params=params)
+        data = response.json()
+    except Exception as e:
+        logging.error(f"Error fetching Dex Screener data: {e}")
+        return
 
-    for coin in data["pairs"]:
-        if coin["market_cap"] and coin["market_cap"] < 200000:
-            coin_id = coin["pairAddress"]
-            if coin_id not in alerted_coins:
+    for coin in data.get("pairs", []):
+        # Using the same key names – verify with Dex Screener API docs:
+        # Here, if 'market_cap' exists and is lower than 200K, fire an alert.
+        if coin.get("market_cap") and coin["market_cap"] < 200000:
+            coin_id = coin.get("pairAddress")
+            if coin_id and coin_id not in alerted_coins:
                 alerted_coins.add(coin_id)
+                # Use the correct keys; adjust if necessary (e.g., market_cap vs marketCap)
                 message = (
                     f"New Coin Alert! 🚨\n"
                     f"{coin['baseToken']['symbol']} / {coin['quoteToken']['symbol']}\n"
-                    f"Price: ${coin['priceUsd']:,}\n"
-                    f"Market Cap: ${coin['marketCap']:,}\n"
+                    f"Price: ${coin['priceUsd']}\n"
+                    f"Market Cap: ${coin.get('market_cap', 'N/A')}\n"
                     f"View on Dex Screener: {coin['pairUrl']}"
                 )
                 for subscriber in SUBSCRIBERS:
-                    await context.bot.send_message(chat_id=subscriber, text=message)
+                    try:
+                        await context.bot.send_message(chat_id=subscriber, text=message)
+                    except Exception as send_error:
+                        logging.error(f"Error sending message to {subscriber}: {send_error}")
 
-# Updated button callback function with logging and proper response messages
+# Button callback handler
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer()  # Acknowledge the button press
-
+    await query.answer()  # acknowledge the button press
     user_id = query.from_user.id
-    logging.info(f"Button pressed: {query.data} by user: {user_id}")
+    data = query.data
 
-    if query.data == "subscribe_alerts":
+    logging.info(f"Button pressed: {data} by user: {user_id}")
+
+    if data == "subscribe_alerts":
         if user_id not in SUBSCRIBERS:
             SUBSCRIBERS.append(user_id)
             response_text = "You’ve subscribed to new coin alerts!"
         else:
             response_text = "You are already subscribed to new coin alerts!"
-    elif query.data == "unsubscribe_alerts":
+        await query.edit_message_text(text=response_text)
+
+    elif data == "unsubscribe_alerts":
         if user_id in SUBSCRIBERS:
             SUBSCRIBERS.remove(user_id)
             response_text = "You’ve unsubscribed from new coin alerts!"
         else:
             response_text = "You are not subscribed!"
-    else:
-        response_text = "Unknown option!"
+        await query.edit_message_text(text=response_text)
 
-    await query.edit_message_text(text=response_text)
+    # Handling inline menu commands from /start
+    elif data == "cmd_lowcap":
+        # Simulate calling the lowcap function; note that direct function call
+        # won't automatically include a message object; instead, we can call the command handler
+        # by sending a temporary message.
+        try:
+            response = await lowcap(update, context)
+        except Exception as e:
+            logging.error(f"Error handling lowcap command from button: {e}")
+            await query.edit_message_text(text="Error fetching low cap coins.")
+    elif data == "cmd_alerts":
+        # Call alerts command to show subscribe/unsubscribe buttons
+        try:
+            response = await alerts(update, context)
+        except Exception as e:
+            logging.error(f"Error handling alerts command from button: {e}")
+            await query.edit_message_text(text="Error loading alerts options.")
+    elif data == "cmd_help":
+        try:
+            await help_command(update, context)
+            await query.edit_message_text(text="Help info sent to you.")
+        except Exception as e:
+            logging.error(f"Error handling help command from button: {e}")
+            await query.edit_message_text(text="Error loading help info.")
+    else:
+        await query.edit_message_text(text="Unknown option!")
 
 def main():
+    # Build the application using your TOKEN
     app = ApplicationBuilder().token(TOKEN).build()
 
     # Register command handlers
@@ -145,9 +196,11 @@ def main():
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("lowcap", lowcap))
     app.add_handler(CommandHandler("alerts", alerts))
+    
+    # Register callback query handler for inline buttons
     app.add_handler(CallbackQueryHandler(button))
 
-    # Schedule Dex Screener alerts every 20 minutes
+    # Schedule new coin alerts every 20 minutes
     app.job_queue.run_repeating(new_coin_alerts, interval=20 * 60, first=0)
 
     # Start the bot
