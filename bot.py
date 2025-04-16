@@ -1,32 +1,23 @@
 from telegram import Update
-from telegram.ext import (
-    ApplicationBuilder,
-    CommandHandler,
-    ContextTypes,
-    JobQueue,
-    Job,
-)
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 import requests
 import os
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-TRACKED_COINS = ["bitcoin", "ethereum", "solana"]  # CoinGecko IDs
+TRACKED_COINS = ["bitcoin", "ethereum", "solana"]
 subscribed_users = set()
 previous_data = {}
 
 def get_tracked_coins():
     url = "https://api.coingecko.com/api/v3/coins/markets"
-    params = {
-        'vs_currency': 'usd',
-        'ids': ','.join(TRACKED_COINS),
-    }
+    params = {'vs_currency': 'usd', 'ids': ','.join(TRACKED_COINS)}
     response = requests.get(url, params=params)
     return response.json()
 
 async def check_for_changes(context: ContextTypes.DEFAULT_TYPE):
     global previous_data
-    application = context.application
     data = get_tracked_coins()
+    application = context.application
 
     for coin in data:
         symbol = coin['symbol'].upper()
@@ -56,12 +47,7 @@ async def check_for_changes(context: ContextTypes.DEFAULT_TYPE):
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_chat.id
     subscribed_users.add(user_id)
-    await update.message.reply_text("Welcome! You are now subscribed to market cap/volume alerts.")
-
-async def subscribe(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_chat.id
-    subscribed_users.add(user_id)
-    await update.message.reply_text("You are now subscribed to updates.")
+    await update.message.reply_text("You are now subscribed to alerts.")
 
 async def unsubscribe(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_chat.id
@@ -69,33 +55,19 @@ async def unsubscribe(update: Update, context: ContextTypes.DEFAULT_TYPE):
         subscribed_users.remove(user_id)
         await update.message.reply_text("You have been unsubscribed.")
     else:
-        await update.message.reply_text("You are not subscribed.")
+        await update.message.reply_text("You weren’t subscribed.")
 
-async def main():
-    application = ApplicationBuilder().token(BOT_TOKEN).build()
+def run_bot():
+    app = ApplicationBuilder().token(BOT_TOKEN).build()
 
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("subscribe", subscribe))
-    application.add_handler(CommandHandler("unsubscribe", unsubscribe))
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("unsubscribe", unsubscribe))
 
-    # Schedule check_for_changes to run every 5 minutes
-    application.job_queue.run_repeating(check_for_changes, interval=300, first=10)
+    # Run check every 5 minutes
+    app.job_queue.run_repeating(check_for_changes, interval=300, first=10)
 
     print("Bot is running...")
-    await application.run_polling()
-
-import asyncio
+    app.run_polling()
 
 if __name__ == "__main__":
-    import nest_asyncio
-    nest_asyncio.apply()  # Allows nested event loops, which Railway uses
-
-    try:
-        asyncio.run(main())
-    except RuntimeError as e:
-        if "already running" in str(e):
-            loop = asyncio.get_event_loop()
-            loop.create_task(main())
-            loop.run_forever()
-        else:
-            raise
+    run_bot()
