@@ -1,11 +1,14 @@
-# bot.py
-
-from telegram import Update, Bot
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
-from apscheduler.schedulers.background import BackgroundScheduler
+from telegram import Update
+from telegram.ext import (
+    ApplicationBuilder,
+    CommandHandler,
+    ContextTypes,
+    JobQueue,
+    Job,
+)
 import requests
-
 import os
+
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 TRACKED_COINS = ["bitcoin", "ethereum", "solana"]  # CoinGecko IDs
 subscribed_users = set()
@@ -20,9 +23,11 @@ def get_tracked_coins():
     response = requests.get(url, params=params)
     return response.json()
 
-async def check_for_changes(application):
+async def check_for_changes(context: ContextTypes.DEFAULT_TYPE):
     global previous_data
+    application = context.application
     data = get_tracked_coins()
+
     for coin in data:
         symbol = coin['symbol'].upper()
         name = coin['name']
@@ -68,31 +73,26 @@ async def unsubscribe(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def main():
     application = ApplicationBuilder().token(BOT_TOKEN).build()
+
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("subscribe", subscribe))
     application.add_handler(CommandHandler("unsubscribe", unsubscribe))
 
-    scheduler = BackgroundScheduler()
-    scheduler.add_job(lambda: application.create_task(check_for_changes(application)), 'interval', minutes=5)
-    scheduler.start()
+    # Schedule check_for_changes to run every 5 minutes
+    application.job_queue.run_repeating(check_for_changes, interval=300, first=10)
 
     print("Bot is running...")
     await application.run_polling()
 
+# Safe for Railway
 import asyncio
 
 if __name__ == "__main__":
-    async def runner():
-        await main()
-
     try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        loop = None
-
-    if loop and loop.is_running():
-        # If we're in an environment like Railway with a running loop
-        loop.create_task(runner())
-    else:
-        # Normal environment
-        asyncio.run(runner())
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            loop.create_task(main())
+        else:
+            loop.run_until_complete(main())
+    except Exception as e:
+        print(f"Bot failed to start: {e}")
