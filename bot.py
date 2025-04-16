@@ -2,7 +2,13 @@ from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 import requests
 import os
-
+def format_change(old_value, new_value):
+    if new_value > old_value:
+        return f"🟢 {new_value:,}"
+    elif new_value < old_value:
+        return f"🔴 {new_value:,}"
+    else:
+        return f"{new_value:,}"
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 TRACKED_COINS = {"bitcoin": "Bitcoin", "ethereum": "Ethereum", "tether": "USDT"}
 subscribed_users = {}  # Dictionary of user subscriptions: user_id -> list of coins
@@ -32,9 +38,9 @@ async def check_for_changes(context: ContextTypes.DEFAULT_TYPE):
                 messages = []
 
                 if market_cap != old['market_cap']:
-                    messages.append(f"Market Cap changed: {old['market_cap']:,} -> {market_cap:,}")
-                if volume != old['volume']:
-                    messages.append(f"Volume changed: {old['volume']:,} -> {volume:,}")
+    messages.append(f"Market Cap changed: {old['market_cap']:,} -> {format_change(old['market_cap'], market_cap)}")
+if volume != old['volume']:
+    messages.append(f"Volume changed: {old['volume']:,} -> {format_change(old['volume'], volume)}")
 
                 if messages:
                     alert = f"{name} ({symbol}):\n" + "\n".join(messages)
