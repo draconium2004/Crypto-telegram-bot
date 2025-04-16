@@ -84,15 +84,18 @@ async def main():
     print("Bot is running...")
     await application.run_polling()
 
-# Safe for Railway
 import asyncio
 
 if __name__ == "__main__":
+    import nest_asyncio
+    nest_asyncio.apply()  # Allows nested event loops, which Railway uses
+
     try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
+        asyncio.run(main())
+    except RuntimeError as e:
+        if "already running" in str(e):
+            loop = asyncio.get_event_loop()
             loop.create_task(main())
+            loop.run_forever()
         else:
-            loop.run_until_complete(main())
-    except Exception as e:
-        print(f"Bot failed to start: {e}")
+            raise
