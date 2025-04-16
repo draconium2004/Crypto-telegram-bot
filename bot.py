@@ -24,6 +24,10 @@ async def check_for_changes(context: ContextTypes.DEFAULT_TYPE):
     global previous_data
     application = context.application
 
+async def check_for_changes(context: ContextTypes.DEFAULT_TYPE):
+    global previous_data
+    application = context.application
+
     # Check for the changes only for coins subscribed by users
     for user_id, subscribed_coins in subscribed_users.items():
         for coin in subscribed_coins:
@@ -38,9 +42,9 @@ async def check_for_changes(context: ContextTypes.DEFAULT_TYPE):
                 messages = []
 
                 if market_cap != old['market_cap']:
-    messages.append(f"Market Cap changed: {old['market_cap']:,} -> {format_change(old['market_cap'], market_cap)}")
-if volume != old['volume']:
-    messages.append(f"Volume changed: {old['volume']:,} -> {format_change(old['volume'], volume)}")
+                    messages.append(f"Market Cap changed: {old['market_cap']:,} -> {format_change(old['market_cap'], market_cap)}")
+                if volume != old['volume']:
+                    messages.append(f"Volume changed: {old['volume']:,} -> {format_change(old['volume'], volume)}")
 
                 if messages:
                     alert = f"{name} ({symbol}):\n" + "\n".join(messages)
