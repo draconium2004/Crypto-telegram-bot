@@ -5,7 +5,8 @@ from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 from apscheduler.schedulers.background import BackgroundScheduler
 import requests
 
-BOT_TOKEN = "YOUR_TELEGRAM_BOT_TOKEN"
+import os
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 TRACKED_COINS = ["bitcoin", "ethereum", "solana"]  # CoinGecko IDs
 subscribed_users = set()
 previous_data = {}
@@ -80,12 +81,16 @@ async def main():
 
 if __name__ == "__main__":
     import asyncio
+
+    async def runner():
+        await main()
+
     try:
-        asyncio.run(main())
+        asyncio.run(runner())
     except RuntimeError as e:
-        if str(e).startswith("This event loop is already running"):
+        if "event loop is already running" in str(e):
             loop = asyncio.get_event_loop()
-            loop.create_task(main())
+            loop.create_task(runner())
             loop.run_forever()
         else:
             raise
